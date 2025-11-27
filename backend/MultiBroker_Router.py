@@ -1,13 +1,4 @@
-# MultiBroker_Router.py
-#
-# Unified backend for:
-# - User register / login / me
-# - Per-user clients (multi-broker)
-# - Groups (per user)
-# - Copy-trading setups (per user)
-#
-# Auth header: x-auth-token
-# Frontend stores token in localStorage as "woi_token"
+# backend/MultiBroker_Router.py
 
 from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,18 +8,28 @@ import os
 import json
 from datetime import datetime
 import uuid
+import logging
 
 APP_TITLE = "Wealth Ocean Multi-Broker Router"
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.3.1"
+
+logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(title=APP_TITLE, version=APP_VERSION)
 
 # ---------------------------------------------------------------------
-# CORS – allow Next.js frontend to talk to this API
+# CORS – allow your Next.js frontend to talk to this API
 # ---------------------------------------------------------------------
+# Your frontend URL from the screenshot:
+DEFAULT_FRONTEND_ORIGIN = "https://multibrokertradermultiuser-production-f735.up.railway.app"
+
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", DEFAULT_FRONTEND_ORIGIN)
+
+logger.info(f"Using FRONTEND_ORIGIN for CORS: {FRONTEND_ORIGIN}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # tighten later
+    allow_origins=[FRONTEND_ORIGIN],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -53,7 +54,8 @@ def load_json(path: str, default):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        logger.error(f"Failed to load JSON {path}: {e}")
         return default
 
 
@@ -142,7 +144,9 @@ def get_current_user(x_auth_token: str = Header(..., alias="x-auth-token")) -> s
     """
     username = ACTIVE_TOKENS.get(x_auth_token)
     if not username:
+        logger.warning(f"Auth failed: invalid token {x_auth_token}")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    logger.info(f"Authenticated request as user={username}")
     return username
 
 
@@ -153,14 +157,15 @@ def get_current_user(x_auth_token: str = Header(..., alias="x-auth-token")) -> s
 def register(req: UserRegisterRequest):
     users = _load_users()
     uname = req.username.strip()
+    logger.info(f"REGISTER attempt for username={uname}")
     if uname in users:
+        logger.warning(f"REGISTER failed: username {uname} already exists")
         raise HTTPException(status_code=400, detail="Username already exists")
 
     users[uname] = {
         "password_hash": _hash_password(req.password),
         "created_at": now_str(),
         "updated_at": now_str(),
-        "email": None,
     }
     _save_users(users)
 
@@ -172,6 +177,7 @@ def register(req: UserRegisterRequest):
     # Auto-login
     token = uuid.uuid4().hex
     ACTIVE_TOKENS[token] = uname
+    logger.info(f"REGISTER success for username={uname}, token={token}")
 
     return AuthResponse(success=True, username=uname, token=token)
 
@@ -180,12 +186,15 @@ def register(req: UserRegisterRequest):
 def login(req: UserLoginRequest):
     users = _load_users()
     uname = req.username.strip()
+    logger.info(f"LOGIN attempt for username={uname}")
 
     if uname not in users:
+        logger.warning(f"LOGIN failed (user not found): {uname}")
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     stored = users[uname]
     if not _verify_password(req.password, stored.get("password_hash", "")):
+        logger.warning(f"LOGIN failed (bad password) for {uname}")
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     stored["last_login_at"] = now_str()
@@ -193,12 +202,14 @@ def login(req: UserLoginRequest):
 
     token = uuid.uuid4().hex
     ACTIVE_TOKENS[token] = uname
+    logger.info(f"LOGIN success for username={uname}, token={token}")
 
     return AuthResponse(success=True, username=uname, token=token)
 
 
 @app.get("/users/me")
 def me(current_user: str = Depends(get_current_user)):
+    logger.info(f"/users/me called by {current_user}")
     return {"username": current_user}
 
 
@@ -234,10 +245,12 @@ def _add_or_update_client(username: str, payload: ClientPayload) -> Dict[str, An
 
     if not os.path.exists(path):
         record["created_at"] = now_str()
+        logger.info(f"Created new client {payload.client_id} for user={username}")
     else:
         existing = load_json(path, {})
         if "created_at" in existing:
             record["created_at"] = existing["created_at"]
+        logger.info(f"Updated client {payload.client_id} for user={username}")
 
     save_json(path, record)
     return record
@@ -277,14 +290,17 @@ def _list_clients(username: str) -> Dict[str, List[Dict[str, Any]]]:
             )
         result[broker] = items
 
+    logger.info(f"Listed clients for user={username}")
     return result
 
 
 def _delete_client(username: str, broker: str, client_id: str) -> None:
     path = _client_path(username, broker, client_id)
     if not os.path.exists(path):
+        logger.warning(f"Tried to delete missing client {client_id} for user={username}")
         raise HTTPException(status_code=404, detail="Client not found")
     os.remove(path)
+    logger.info(f"Deleted client {client_id} for user={username}")
 
 
 @app.post("/clients/add")
