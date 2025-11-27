@@ -1,23 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCurrentUser, setCurrentUser } from "../../src/lib/userSession";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
 export default function LoginPage() {
-  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
+  const [activeTab, setActiveTab] = useState("login"); // "login" | "register"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
 
-  // If already logged in, go directly to trader page
+  // If already logged in (user in localStorage), go directly to trader page
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const token = localStorage.getItem("woi_token");
-    if (token) {
+    const user = getCurrentUser();
+    if (user) {
       window.location.href = "/trader";
     }
   }, []);
@@ -27,7 +28,7 @@ export default function LoginPage() {
     setSuccessMsg(null);
   }
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e) {
     e.preventDefault();
     resetMessages();
 
@@ -64,12 +65,13 @@ export default function LoginPage() {
       }
 
       if (typeof window !== "undefined") {
-        localStorage.setItem("woi_token", token);
-        localStorage.setItem("woi_username", data.username || username);
+        // for axios interceptor in src/lib/api.js
+        window.localStorage.setItem("token", token);
+        // for /trader guard (userSession.js)
+        setCurrentUser(data.username || username);
       }
 
       setSuccessMsg("Login successful. Redirecting…");
-      // Redirect to trader dashboard
       window.location.href = "/trader";
     } catch (err) {
       console.error("Login error:", err);
@@ -79,7 +81,7 @@ export default function LoginPage() {
     }
   }
 
-  async function handleRegister(e: React.FormEvent) {
+  async function handleRegister(e) {
     e.preventDefault();
     resetMessages();
 
@@ -116,8 +118,8 @@ export default function LoginPage() {
       }
 
       if (typeof window !== "undefined") {
-        localStorage.setItem("woi_token", token);
-        localStorage.setItem("woi_username", data.username || username);
+        window.localStorage.setItem("token", token);
+        setCurrentUser(data.username || username);
       }
 
       setSuccessMsg("User created successfully. Redirecting…");
