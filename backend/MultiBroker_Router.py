@@ -184,17 +184,22 @@ def register(req: UserRegisterRequest):
 
 @app.post("/users/login", response_model=AuthResponse)
 def login(req: UserLoginRequest):
+    # --- DEBUG LOGS START ---
+    print("===== /users/login called =====")
+    print("Request body:", req.dict())
+    # --- DEBUG LOGS END ---
+
     users = _load_users()
     uname = req.username.strip()
-    logger.info(f"LOGIN attempt for username={uname}")
+    print("Login attempt for username:", uname)
 
     if uname not in users:
-        logger.warning(f"LOGIN failed (user not found): {uname}")
+        print("Login FAILED: user not found:", uname)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     stored = users[uname]
     if not _verify_password(req.password, stored.get("password_hash", "")):
-        logger.warning(f"LOGIN failed (bad password) for {uname}")
+        print("Login FAILED: wrong password for:", uname)
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     stored["last_login_at"] = now_str()
@@ -202,9 +207,17 @@ def login(req: UserLoginRequest):
 
     token = uuid.uuid4().hex
     ACTIVE_TOKENS[token] = uname
-    logger.info(f"LOGIN success for username={uname}, token={token}")
 
-    return AuthResponse(success=True, username=uname, token=token)
+    resp = AuthResponse(success=True, username=uname, token=token)
+
+    # --- DEBUG LOGS START ---
+    print("Login SUCCESS for:", uname)
+    print("Response JSON:", resp.dict())
+    print("===== /users/login finished =====")
+    # --- DEBUG LOGS END ---
+
+    return resp
+
 
 
 @app.get("/users/me")
@@ -508,3 +521,4 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run("MultiBroker_Router:app", host="0.0.0.0", port=8000, reload=True)
+
