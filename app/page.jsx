@@ -4,7 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Container, Row, Col, Card, Tabs, Tab, Form, Button, Alert } from 'react-bootstrap';
 import { api } from '../src/lib/api';
+import LoginPage from "./login/page";
 
+
+export default function RootPage() {
+  return <LoginPage />;
+}
 export default function HomePage() {
   const router = useRouter();
   const [tab, setTab] = useState('login');
