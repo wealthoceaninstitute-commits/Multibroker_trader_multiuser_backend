@@ -1,80 +1,73 @@
 "use client";
 
 import { useState } from "react";
-
-// 🔴 FIXED IMPORT PATHS
-import TradeForm from "../../components/TradeForm";
-import Orders from "../../components/Orders";
-import Positions from "../../components/Positions";
-import Holdings from "../../components/Holdings";
-import Summary from "../../components/Summary";
-import Clients from "../../components/Clients";
-import CopyTrading from "../../components/CopyTrading";
+import TradeForm from "@/components/TradeForm";
+import Orders from "@/components/Orders";
+import Positions from "@/components/Positions";
+import Holdings from "@/components/Holdings";
+import Summary from "@/components/Summary";
+import Clients from "@/components/Clients";
+import CopyTrading from "@/components/CopyTrading";
 
 export default function TradePage() {
-  const [activeTab, setActiveTab] = useState("trade");
+  const [tab, setTab] = useState("trade");
 
-  const tabStyle = (tab) => ({
-    padding: "8px 16px",
-    cursor: "pointer",
-    borderBottom: activeTab === tab ? "2px solid blue" : "1px solid #ddd",
-    color: activeTab === tab ? "blue" : "#333",
-    fontWeight: activeTab === tab ? "600" : "400",
-  });
+  const renderTab = () => {
+    switch (tab) {
+      case "orders": return <Orders />;
+      case "positions": return <Positions />;
+      case "holdings": return <Holdings />;
+      case "summary": return <Summary />;
+      case "clients": return <Clients />;
+      case "copy": return <CopyTrading />;
+      default: return <TradeForm />;
+    }
+  };
 
   return (
-    <div style={{ padding: "20px" }}>
+    <div style={{ padding: 20 }}>
 
-      {/* TOP NAV TABS */}
-      <div
-        style={{
-          display: "flex",
-          gap: "15px",
-          borderBottom: "1px solid #ccc",
-          marginBottom: "20px",
-          flexWrap: "wrap",
-        }}
-      >
-        <span onClick={() => setActiveTab("trade")} style={tabStyle("trade")}>
-          Trade
-        </span>
+      <nav style={{
+        display: "flex",
+        gap: 20,
+        borderBottom: "1px solid #e5e7eb",
+        paddingBottom: 10,
+        marginBottom: 20,
+        flexWrap: "wrap"
+      }}>
 
-        <span onClick={() => setActiveTab("orders")} style={tabStyle("orders")}>
-          Orders
-        </span>
+        <Tab label="Trade" value="trade" tab={tab} setTab={setTab}/>
+        <Tab label="Orders" value="orders" tab={tab} setTab={setTab}/>
+        <Tab label="Positions" value="positions" tab={tab} setTab={setTab}/>
+        <Tab label="Holdings" value="holdings" tab={tab} setTab={setTab}/>
+        <Tab label="Summary" value="summary" tab={tab} setTab={setTab}/>
+        <Tab label="Clients" value="clients" tab={tab} setTab={setTab}/>
+        <Tab label="Copy Trading" value="copy" tab={tab} setTab={setTab}/>
 
-        <span onClick={() => setActiveTab("positions")} style={tabStyle("positions")}>
-          Positions
-        </span>
+      </nav>
 
-        <span onClick={() => setActiveTab("holdings")} style={tabStyle("holdings")}>
-          Holdings
-        </span>
-
-        <span onClick={() => setActiveTab("summary")} style={tabStyle("summary")}>
-          Summary
-        </span>
-
-        <span onClick={() => setActiveTab("clients")} style={tabStyle("clients")}>
-          Clients
-        </span>
-
-        <span onClick={() => setActiveTab("copy")} style={tabStyle("copy")}>
-          Copy Trading
-        </span>
-      </div>
-
-      {/* CONTENT AREA */}
-      <div>
-        {activeTab === "trade" && <TradeForm />}
-        {activeTab === "orders" && <Orders />}
-        {activeTab === "positions" && <Positions />}
-        {activeTab === "holdings" && <Holdings />}
-        {activeTab === "summary" && <Summary />}
-        {activeTab === "clients" && <Clients />}
-        {activeTab === "copy" && <CopyTrading />}
-      </div>
-
+      {renderTab()}
     </div>
+  );
+}
+
+function Tab({ label, value, tab, setTab }) {
+  const isActive = tab === value;
+
+  return (
+    <button
+      onClick={() => setTab(value)}
+      style={{
+        border: "none",
+        background: "transparent",
+        color: isActive ? "#2563eb" : "#374151",
+        fontWeight: isActive ? "bold" : "normal",
+        borderBottom: isActive ? "2px solid #2563eb" : "none",
+        paddingBottom: 5,
+        cursor: "pointer"
+      }}
+    >
+      {label}
+    </button>
   );
 }
