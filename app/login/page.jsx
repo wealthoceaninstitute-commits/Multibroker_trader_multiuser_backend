@@ -11,13 +11,31 @@ export default function Login() {
 
   async function login() {
     try {
+      if (!API) {
+        alert("API base URL (NEXT_PUBLIC_API_BASE) is not set");
+        return;
+      }
+
       const res = await fetch(`${API}/users/login`, {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ email, password })
+        // backend expects `username` + `password`
+        body: JSON.stringify({
+          username: email,   // again, we use email as username
+          password: password
+        })
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const detail =
+          (Array.isArray(data.detail) ? JSON.stringify(data.detail) : data.detail) ||
+          "❌ Invalid credentials";
+        alert(detail);
+        console.error("Login error:", data);
+        return;
+      }
 
       if(data.success){
         localStorage.setItem("x-auth-token", data.token);
@@ -51,13 +69,21 @@ export default function Login() {
         textAlign:"center"
       }}>
 
-        <h2 style={{marginBottom:20}}>Login</h2>
+        <h2 style={{marginBottom:20, fontSize:24}}>Login</h2>
 
-        <input style={inputStyle} type="email" placeholder="Email"
-          onChange={e=>setEmail(e.target.value)} />
+        <input
+          style={inputStyle}
+          placeholder="Email"
+          type="email"
+          onChange={e=>setEmail(e.target.value)}
+        />
 
-        <input style={inputStyle} type="password" placeholder="Password"
-          onChange={e=>setPassword(e.target.value)} />
+        <input
+          style={inputStyle}
+          placeholder="Password"
+          type="password"
+          onChange={e=>setPassword(e.target.value)}
+        />
 
         <button style={btnStyle} onClick={login}>
           Login
@@ -81,7 +107,9 @@ const inputStyle = {
   marginBottom:15,
   borderRadius:8,
   border:"1px solid #ccc",
-}
+  outline:"none",
+  fontSize:14
+};
 
 const btnStyle = {
   width:"100%",
@@ -90,5 +118,7 @@ const btnStyle = {
   color:"white",
   border:"none",
   borderRadius:8,
-  fontWeight:"bold"
-}
+  cursor:"pointer",
+  fontWeight:"bold",
+  fontSize:15
+};
