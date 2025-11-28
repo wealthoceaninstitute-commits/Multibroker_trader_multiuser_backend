@@ -8,19 +8,30 @@ export default function Login() {
   const router = useRouter();
 
   async function login() {
-    const res = await fetch("https://multibrokertradermultiuser-production-f735.up.railway.app/login",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({email,password})
-    });
+    try{
+      const res = await fetch(
+        "https://multibrokertradermultiuser-production-f735.up.railway.app/users/login",
+        {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ email, password })
+        }
+      );
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if(data.status === "success"){
-      localStorage.setItem("user", email);
-      router.push("/trade");
+      if(data.success){
+        localStorage.setItem("x-auth-token", data.token);
+        localStorage.setItem("user", data.username);
+        router.push("/trade");
+      } else {
+        alert(data.detail || "❌ Invalid credentials");
+      }
+
+    } catch(error){
+      alert("❌ Server not reachable");
+      console.error(error);
     }
-    else alert("❌ Invalid credentials");
   }
 
   return (
@@ -33,7 +44,7 @@ export default function Login() {
     }}>
 
       <div style={{
-        width:350,
+        width:370,
         background:"white",
         padding:30,
         borderRadius:12,
@@ -41,7 +52,7 @@ export default function Login() {
         textAlign:"center"
       }}>
 
-        <h2 style={{marginBottom:20}}>Login</h2>
+        <h2 style={{marginBottom:20, fontSize:24}}>Login</h2>
 
         <input
           style={inputStyle}
@@ -57,10 +68,7 @@ export default function Login() {
           onChange={e=>setPassword(e.target.value)}
         />
 
-        <button 
-          style={btnStyle}
-          onClick={login}
-        >
+        <button style={btnStyle} onClick={login}>
           Login
         </button>
 
@@ -94,5 +102,6 @@ const btnStyle = {
   border:"none",
   borderRadius:8,
   cursor:"pointer",
-  fontWeight:"bold"
+  fontWeight:"bold",
+  fontSize:15
 }
