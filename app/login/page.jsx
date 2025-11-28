@@ -2,21 +2,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const API = process.env.NEXT_PUBLIC_API_BASE;
+
 export default function Login() {
   const [email,setEmail] = useState("");
   const [password,setPassword] = useState("");
   const router = useRouter();
 
   async function login() {
-    try{
-      const res = await fetch(
-        "https://multibrokertradermultiuser-production-f735.up.railway.app/users/login",
-        {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ email, password })
-        }
-      );
+    try {
+      const res = await fetch(`${API}/users/login`, {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ email, password })
+      });
 
       const data = await res.json();
 
@@ -52,21 +51,13 @@ export default function Login() {
         textAlign:"center"
       }}>
 
-        <h2 style={{marginBottom:20, fontSize:24}}>Login</h2>
+        <h2 style={{marginBottom:20}}>Login</h2>
 
-        <input
-          style={inputStyle}
-          placeholder="Email"
-          type="email"
-          onChange={e=>setEmail(e.target.value)}
-        />
+        <input style={inputStyle} type="email" placeholder="Email"
+          onChange={e=>setEmail(e.target.value)} />
 
-        <input
-          style={inputStyle}
-          placeholder="Password"
-          type="password"
-          onChange={e=>setPassword(e.target.value)}
-        />
+        <input style={inputStyle} type="password" placeholder="Password"
+          onChange={e=>setPassword(e.target.value)} />
 
         <button style={btnStyle} onClick={login}>
           Login
@@ -90,8 +81,6 @@ const inputStyle = {
   marginBottom:15,
   borderRadius:8,
   border:"1px solid #ccc",
-  outline:"none",
-  fontSize:14
 }
 
 const btnStyle = {
@@ -101,7 +90,5 @@ const btnStyle = {
   color:"white",
   border:"none",
   borderRadius:8,
-  cursor:"pointer",
-  fontWeight:"bold",
-  fontSize:15
+  fontWeight:"bold"
 }
