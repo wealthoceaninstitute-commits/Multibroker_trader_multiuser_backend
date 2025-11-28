@@ -6,96 +6,78 @@ import { useRouter } from "next/navigation";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-
   const router = useRouter();
 
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 
-  async function handleLogin(e) {
-    e.preventDefault();
-    setLoading(true);
+  const handleLogin = async () => {
+    if (!email || !password) {
+      alert("Enter email and password");
+      return;
+    }
 
     try {
-      const res = await fetch(`${API_BASE}/users/login`, {
+      const response = await fetch(`${API_BASE}/users/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          email,      // ✅ REQUIRED BY BACKEND
-          password
+          email: email.toLowerCase(),   // ✅ REQUIRED
+          password: password
         })
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
+      if (!response.ok) {
         alert(data.detail || "Login failed");
-        setLoading(false);
         return;
       }
 
-      // Save token
+      // Save token and user
       localStorage.setItem("token", data.token);
       localStorage.setItem("username", data.username);
 
-      alert("✅ Login successful");
+      alert("✅ Login Success");
 
-      // Redirect to main app
+      // Go to trade
       router.push("/trade");
 
     } catch (err) {
       console.error(err);
       alert("Server not reachable");
-    } finally {
-      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-black to-blue-900">
-      <div className="bg-white p-8 rounded-xl shadow-xl w-96">
-        <h1 className="text-2xl font-bold mb-6 text-center">Login</h1>
+    <div style={{ padding: "30px" }}>
+      <h1>Login</h1>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <input
-            type="email"
-            placeholder="Email"
-            className="w-full border p-2 rounded"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ marginRight: "10px", padding: "6px" }}
+      />
 
-          <input
-            type="password"
-            placeholder="Password"
-            className="w-full border p-2 rounded"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        style={{ marginRight: "10px", padding: "6px" }}
+      />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-700 text-white py-2 rounded hover:bg-blue-800"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
+      <button onClick={handleLogin}>
+        Login
+      </button>
 
-        <p className="text-center text-sm mt-4">
-          Don’t have an account?{" "}
-          <a
-            href="/signup"
-            className="text-blue-600 underline"
-          >
-            Create new account
-          </a>
-        </p>
-      </div>
+      <p style={{ marginTop: "20px" }}>
+        Don’t have an account?{" "}
+        <a href="/signup">Create new account</a>
+      </p>
     </div>
   );
 }
