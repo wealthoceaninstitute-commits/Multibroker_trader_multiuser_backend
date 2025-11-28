@@ -19,7 +19,9 @@ export default function LoginPage() {
     try {
       const res = await fetch(`${API_BASE}/users/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({ email, password }),
       });
 
@@ -37,12 +39,12 @@ export default function LoginPage() {
 
       alert("✅ Login Successful");
 
-      // ✅ Redirect TO TRADE PAGE
+      // ✅ Redirect after login
       router.push("/trade");
 
-    } catch (err) {
-      console.error(err);
-      alert("Server not reachable");
+    } catch (error) {
+      console.error(error);
+      alert("❌ Server not reachable");
     }
 
     setLoading(false);
@@ -52,9 +54,9 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a1328] to-[#0f2458]">
       <form
         onSubmit={handleLogin}
-        className="bg-white p-8 rounded-xl shadow-xl w-[380px]"
+        className="bg-white p-8 rounded-xl shadow-xl w-[380px] text-center"
       >
-        <h1 className="text-3xl font-semibold mb-6 text-center">Login</h1>
+        <h2 className="text-3xl font-bold mb-6">Login</h2>
 
         <input
           type="email"
@@ -82,11 +84,11 @@ export default function LoginPage() {
           {loading ? "Logging in..." : "Login"}
         </button>
 
-        <p className="text-center mt-4">
+        <p className="mt-4 text-sm">
           Don’t have an account?{" "}
           <span
             onClick={() => router.push("/signup")}
-            className="text-blue-500 cursor-pointer"
+            className="text-blue-600 cursor-pointer"
           >
             Create new account
           </span>
