@@ -1,77 +1,123 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import api from "../components/api";           // reuse your existing axios helper
+import { setCurrentUser } from "../src/lib/userSession";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "";
-
-export default function Home() {
+export default function LoginPage() {
   const router = useRouter();
 
-  const [tab, setTab] = useState("login");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState("");
+  const [activeTab, setActiveTab] = useState("login"); // "login" or "signup"
+  const [loginForm, setLoginForm] = useState({
+    username: "",
+    password: "",
+  });
+  const [signupForm, setSignupForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const handleLogin = async () => {
-    setMsg("");
+  // -------------------- handlers --------------------
+
+  const handleLoginChange = (e) => {
+    const { name, value } = e.target;
+    setLoginForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSignupChange = (e) => {
+    const { name, value } = e.target;
+    setSignupForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleLoginSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setLoading(true);
 
     try {
-      const res = await fetch(`${API}/users/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: username.trim(),
-          password: password.trim(),
-        }),
+      const res = await api.post("/users/login", {
+        username: loginForm.username,
+        password: loginForm.password,
       });
 
-      const data = await res.json();
+      const data = res.data || {};
 
-      if (!res.ok || !data.success) {
-        setMsg(data.detail || "Login failed");
-        return;
+      if (!data.success || !data.token) {
+        throw new Error(data.detail || "Login failed");
       }
 
-      // Store login (simple)
-      localStorage.setItem("woi_user", username);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("username", data.username);
+        localStorage.setItem("token", data.token);
+      }
 
-      // ✅ Redirect to trader page
-      router.replace("/trader");
+      // important: let frontend know who is logged in
+      setCurrentUser(data.username);
+
+      router.push("/trader");
     } catch (err) {
-      console.error(err);
-      setMsg("Server not reachable");
+      console.error("Login error:", err);
+      const msg =
+        (err &&
+          err.response &&
+          err.response.data &&
+          err.response.data.detail) ||
+        err.message ||
+        "Login failed. Please check your username or password.";
+      setErrorMsg(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleCreate = async () => {
-    setMsg("");
+  const handleSignupSubmit = async (e) => {
+    e.preventDefault();
+    setErrorMsg("");
+    setLoading(true);
 
     try {
-      const res = await fetch(`${API}/users/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: username.trim(),
-          password: password.trim(),
-        }),
+      const res = await api.post("/users/register", {
+        username: signupForm.username,
+        password: signupForm.password,
+        email: signupForm.email || "",
       });
 
-      const data = await res.json();
+      const data = res.data || {};
 
-      if (!res.ok || !data.success) {
-        setMsg(data.detail || "User creation failed");
-        return;
+      if (!data.success || !data.token) {
+        throw new Error(data.detail || "User creation failed");
       }
 
-      setMsg("✅ User created successfully. Now login.");
-      setTab("login");
-      setPassword("");
+      if (typeof window !== "undefined") {
+        localStorage.setItem("username", data.username);
+        localStorage.setItem("token", data.token);
+      }
+
+      setCurrentUser(data.username);
+
+      router.push("/trader");
     } catch (err) {
-      console.error(err);
-      setMsg("Server not reachable");
+      console.error("Signup error:", err);
+      const msg =
+        (err &&
+          err.response &&
+          err.response.data &&
+          err.response.data.detail) ||
+        err.message ||
+        "User creation failed. Try a different username.";
+      setErrorMsg(msg);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const isLogin = activeTab === "login";
+
+  // -------------------- UI --------------------
 
   return (
     <div
@@ -80,108 +126,257 @@ export default function Home() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontFamily: "Arial",
+        background: "#f5f7fb",
+        padding: "24px 16px",
       }}
     >
-      <div style={{ width: 400, padding: 30, border: "1px solid #ccc", borderRadius: 8 }}>
-        <h2 style={{ textAlign: "center", marginBottom: 5 }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          background: "#ffffff",
+          borderRadius: 16,
+          boxShadow: "0 16px 40px rgba(15,23,42,0.16)",
+          padding: "32px 36px 40px",
+        }}
+      >
+        <h1
+          style={{
+            textAlign: "center",
+            fontSize: 28,
+            fontWeight: 700,
+            marginBottom: 4,
+          }}
+        >
           Wealth Ocean – Login
-        </h2>
-
-        <p style={{ textAlign: "center", marginBottom: 20 }}>
+        </h1>
+        <p
+          style={{
+            textAlign: "center",
+            color: "#64748b",
+            marginBottom: 24,
+          }}
+        >
           Multi-broker, multi-user trading panel
         </p>
 
-        {msg && (
-          <div
-            style={{
-              background: "#ffe0e0",
-              padding: 10,
-              marginBottom: 15,
-              borderRadius: 5,
-              textAlign: "center",
-            }}
-          >
-            {msg}
-          </div>
-        )}
-
         {/* Tabs */}
-        <div style={{ display: "flex", marginBottom: 20 }}>
+        <div
+          style={{
+            display: "flex",
+            borderRadius: 999,
+            background: "#e2e8f0",
+            padding: 4,
+            marginBottom: 24,
+          }}
+        >
           <button
-            onClick={() => setTab("login")}
+            type="button"
+            onClick={() => {
+              setActiveTab("login");
+              setErrorMsg("");
+            }}
             style={{
               flex: 1,
-              padding: 10,
-              background: tab === "login" ? "#000" : "#ddd",
-              color: tab === "login" ? "white" : "black",
-              border: "1px solid #000",
+              border: "none",
+              borderRadius: 999,
+              padding: "8px 12px",
+              background: isLogin ? "#ffffff" : "transparent",
+              fontWeight: 600,
+              color: isLogin ? "#0f172a" : "#64748b",
               cursor: "pointer",
             }}
           >
             Login
           </button>
-
           <button
-            onClick={() => setTab("create")}
+            type="button"
+            onClick={() => {
+              setActiveTab("signup");
+              setErrorMsg("");
+            }}
             style={{
               flex: 1,
-              padding: 10,
-              background: tab === "create" ? "#000" : "#ddd",
-              color: tab === "create" ? "white" : "black",
-              border: "1px solid #000",
+              border: "none",
+              borderRadius: 999,
+              padding: "8px 12px",
+              background: !isLogin ? "#ffffff" : "transparent",
+              fontWeight: 600,
+              color: !isLogin ? "#0f172a" : "#64748b",
               cursor: "pointer",
             }}
           >
-            Create User
+            Create New User
           </button>
         </div>
 
-        <label>User ID</label>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          style={{ width: "100%", padding: 8, marginBottom: 10 }}
-        />
-
-        <label>Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", padding: 8, marginBottom: 20 }}
-        />
-
-        {tab === "login" ? (
-          <button
-            onClick={handleLogin}
+        {errorMsg && (
+          <div
             style={{
-              width: "100%",
-              padding: 12,
-              background: "#2563eb",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 16,
+              marginBottom: 16,
+              padding: "10px 12px",
+              borderRadius: 8,
+              background: "#fee2e2",
+              color: "#b91c1c",
+              fontSize: 14,
             }}
           >
-            Login
-          </button>
+            {errorMsg}
+          </div>
+        )}
+
+        {isLogin ? (
+          <form onSubmit={handleLoginSubmit}>
+            <div style={{ marginBottom: 14 }}>
+              <label
+                style={{ display: "block", fontSize: 14, marginBottom: 6 }}
+              >
+                User ID / Username
+              </label>
+              <input
+                name="username"
+                type="text"
+                value={loginForm.username}
+                onChange={handleLoginChange}
+                required
+                placeholder="Enter your user id"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  fontSize: 14,
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{ display: "block", fontSize: 14, marginBottom: 6 }}
+              >
+                Password
+              </label>
+              <input
+                name="password"
+                type="password"
+                value={loginForm.password}
+                onChange={handleLoginChange}
+                required
+                placeholder="Enter your password"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  fontSize: 14,
+                }}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "none",
+                background: loading ? "#2563ebaa" : "#2563eb",
+                color: "#ffffff",
+                fontWeight: 600,
+                fontSize: 15,
+                cursor: loading ? "default" : "pointer",
+              }}
+            >
+              {loading ? "Logging in..." : "Login"}
+            </button>
+          </form>
         ) : (
-          <button
-            onClick={handleCreate}
-            style={{
-              width: "100%",
-              padding: 12,
-              background: "#15803d",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 16,
-            }}
-          >
-            Create User
-          </button>
+          <form onSubmit={handleSignupSubmit}>
+            <div style={{ marginBottom: 14 }}>
+              <label
+                style={{ display: "block", fontSize: 14, marginBottom: 6 }}
+              >
+                User ID / Username
+              </label>
+              <input
+                name="username"
+                type="text"
+                value={signupForm.username}
+                onChange={handleSignupChange}
+                required
+                placeholder="Choose a user id"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label
+                style={{ display: "block", fontSize: 14, marginBottom: 6 }}
+              >
+                Email (optional)
+              </label>
+              <input
+                name="email"
+                type="email"
+                value={signupForm.email}
+                onChange={handleSignupChange}
+                placeholder="you@example.com"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{ display: "block", fontSize: 14, marginBottom: 6 }}
+              >
+                Password
+              </label>
+              <input
+                name="password"
+                type="password"
+                value={signupForm.password}
+                onChange={handleSignupChange}
+                required
+                placeholder="Create a password"
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  borderRadius: 8,
+                  border: "1px solid #cbd5e1",
+                  fontSize: 14,
+                }}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "none",
+                background: loading ? "#16a34aaa" : "#16a34a",
+                color: "#ffffff",
+                fontWeight: 600,
+                fontSize: 15,
+                cursor: loading ? "default" : "pointer",
+              }}
+            >
+              {loading ? "Creating user..." : "Create User"}
+            </button>
+          </form>
         )}
       </div>
     </div>
