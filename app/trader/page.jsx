@@ -5,15 +5,6 @@ import { useRouter } from "next/navigation";
 import { Container, Tabs, Tab, Button } from "react-bootstrap";
 import { getCurrentUser, clearCurrentUser } from "../../src/lib/userSession";
 
-// Import your components (if you already have them)
-import TradeForm from "../../src/components/TradeForm";
-import Orders from "../../src/components/Orders";
-import Positions from "../../src/components/Positions";
-import Holdings from "../../src/components/Holdings";
-import Summary from "../../src/components/Summary";
-import Clients from "../../src/components/Clients";
-import CopyTrading from "../../src/components/CopyTrading";
-
 export default function TraderPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("trade");
@@ -35,8 +26,10 @@ export default function TraderPage() {
 
   return (
     <Container fluid className="mt-3">
+
+      {/* Top header */}
       <div className="d-flex justify-content-between align-items-center mb-3">
-        <h4>Wealth Ocean – Multi Broker Dashboard</h4>
+        <h4>Wealth Ocean – MultiBroker Dashboard</h4>
         <div>
           <strong>{username}</strong>{" "}
           <Button size="sm" variant="outline-danger" onClick={handleLogout}>
@@ -45,40 +38,51 @@ export default function TraderPage() {
         </div>
       </div>
 
+      {/* Tabs */}
       <Tabs
         activeKey={activeTab}
         onSelect={(k) => setActiveTab(k)}
         className="mb-3"
         justify
       >
+
         <Tab eventKey="trade" title="Trade">
-          <TradeForm />
+          <h5>Trade Panel</h5>
+          <p>This is your TradeForm area (will connect later)</p>
         </Tab>
 
         <Tab eventKey="orders" title="Orders">
-          <Orders />
+          <h5>Orders</h5>
+          <p>Orders will come here</p>
         </Tab>
 
         <Tab eventKey="positions" title="Positions">
-          <Positions />
+          <h5>Positions</h5>
+          <p>Open positions here</p>
         </Tab>
 
         <Tab eventKey="holdings" title="Holdings">
-          <Holdings />
+          <h5>Holdings</h5>
+          <p>Your holdings here</p>
         </Tab>
 
         <Tab eventKey="summary" title="Summary">
-          <Summary />
+          <h5>Summary</h5>
+          <p>Account summary here</p>
         </Tab>
 
         <Tab eventKey="clients" title="Clients">
-          <Clients />
+          <h5>Clients</h5>
+          <p>Client management here</p>
         </Tab>
 
         <Tab eventKey="copy" title="Copy Trading">
-          <CopyTrading />
+          <h5>Copy Trading</h5>
+          <p>Copy trading setup here</p>
         </Tab>
+
       </Tabs>
+
     </Container>
   );
 }
