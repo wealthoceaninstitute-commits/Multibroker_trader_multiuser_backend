@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL;
-
 export default function LoginPage() {
   const router = useRouter();
 
@@ -12,88 +10,90 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const API = process.env.NEXT_PUBLIC_API_BASE;
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/users/login`, {
+      const res = await fetch(`${API}/users/login`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password: password,
+        }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data?.detail || "Login failed");
-        setLoading(false);
-        return;
+        throw new Error(
+          data?.detail || data?.message || "Invalid login credentials"
+        );
       }
 
-      // ✅ Save token
-      localStorage.setItem("auth_token", data.token);
+      // Save token & user
+      localStorage.setItem("token", data.token);
       localStorage.setItem("username", data.username);
 
       alert("✅ Login Successful");
 
-      // ✅ Redirect after login
-      router.push("/trade");
-
-    } catch (error) {
-      console.error(error);
-      alert("❌ Server not reachable");
+      // Redirect after login
+      router.push("/");
+    } catch (err) {
+      alert("❌ " + err.message);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a1328] to-[#0f2458]">
-      <form
-        onSubmit={handleLogin}
-        className="bg-white p-8 rounded-xl shadow-xl w-[380px] text-center"
-      >
-        <h2 className="text-3xl font-bold mb-6">Login</h2>
+    <div className="min-h-screen bg-gradient-to-br from-[#030b2f] via-[#061955] to-[#020815] flex items-center justify-center">
+      <div className="bg-white p-10 rounded-xl shadow-2xl w-[400px]">
+        <h1 className="text-3xl font-bold text-center mb-6">Login</h1>
 
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full p-3 border rounded mb-4"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
+        <form onSubmit={handleLogin} className="space-y-4">
+          <input
+            type="email"
+            placeholder="Email"
+            className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+          />
 
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full p-3 border rounded mb-6"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+          <input
+            type="password"
+            placeholder="Password"
+            className="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
 
-        <button
-          type="submit"
-          className="w-full bg-blue-600 text-white py-3 rounded hover:bg-blue-700 transition"
-          disabled={loading}
-        >
-          {loading ? "Logging in..." : "Login"}
-        </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-700 text-white p-3 rounded hover:bg-blue-800 transition-all"
+          >
+            {loading ? "Logging in..." : "Login"}
+          </button>
+        </form>
 
-        <p className="mt-4 text-sm">
+        <p className="mt-6 text-center text-sm">
           Don’t have an account?{" "}
-          <span
-            onClick={() => router.push("/signup")}
-            className="text-blue-600 cursor-pointer"
+          <a
+            href="/signup"
+            className="text-blue-700 font-semibold hover:underline"
           >
             Create new account
-          </span>
+          </a>
         </p>
-      </form>
+      </div>
     </div>
   );
 }
