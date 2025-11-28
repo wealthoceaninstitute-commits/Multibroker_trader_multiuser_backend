@@ -1,167 +1,278 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { getCurrentUser, setCurrentUser } from "../../src/lib/userSession";
 
-const API = "https://multibrokertrader-multiuser-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "";
 
 export default function LoginPage() {
-  const router = useRouter();
-
-  const [tab, setTab] = useState("login");
+  const [activeTab, setActiveTab] = useState("login"); // "login" | "register"
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
 
-  const handleLogin = async () => {
-    setMessage("Logging in...");
+  // If already logged in (user in localStorage), go directly to trader page
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const user = getCurrentUser();
+    if (user) {
+      window.location.href = "/trader";
+    }
+  }, []);
+
+  function resetMessages() {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    resetMessages();
+
+    if (!username || !password) {
+      setErrorMsg("Please enter both username and password.");
+      return;
+    }
 
     try {
-      const res = await fetch(`${API}/users/login`, {
+      setLoading(true);
+      const resp = await fetch(`${API_BASE}/users/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username,
-          password
-        })
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username, password }),
       });
 
-      const data = await res.json();
+      const data = await resp.json().catch(() => ({}));
 
-      if (!res.ok) {
-        setMessage(data.detail || "Login failed");
+      if (!resp.ok) {
+        setErrorMsg(
+          typeof data?.detail === "string"
+            ? data.detail
+            : "Login failed. Please check your credentials."
+        );
         return;
       }
 
-      // Save session
-      localStorage.setItem("auth", "true");
-      localStorage.setItem("user", username);
-
-      router.replace("/trader");
-    } catch (err) {
-      console.error(err);
-      setMessage("Server not reachable");
-    }
-  };
-
-  const handleCreateUser = async () => {
-    setMessage("Creating user...");
-
-    try {
-      const res = await fetch(`${API}/users/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username,
-          password
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMessage(data.detail || "User creation failed");
+      const token = data.authToken || data.token;
+      if (!token) {
+        setErrorMsg("Login succeeded but token missing in response.");
         return;
       }
 
-      setMessage("✅ User created. Now login.");
-      setTab("login");
+      if (typeof window !== "undefined") {
+        // for axios interceptor in src/lib/api.js
+        window.localStorage.setItem("token", token);
+        // for /trader guard (userSession.js)
+        setCurrentUser(data.username || username);
+      }
+
+      setSuccessMsg("Login successful. Redirecting…");
+      window.location.href = "/trader";
     } catch (err) {
-      console.error(err);
-      setMessage("Server not reachable");
+      console.error("Login error:", err);
+      setErrorMsg("Network error while logging in.");
+    } finally {
+      setLoading(false);
     }
-  };
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault();
+    resetMessages();
+
+    if (!username || !password) {
+      setErrorMsg("Username and password are required.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const resp = await fetch(`${API_BASE}/users/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await resp.json().catch(() => ({}));
+
+      if (!resp.ok) {
+        setErrorMsg(
+          typeof data?.detail === "string"
+            ? data.detail
+            : "User creation failed. Try a different username."
+        );
+        return;
+      }
+
+      const token = data.authToken || data.token;
+      if (!token) {
+        setErrorMsg("User created but token missing in response.");
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("token", token);
+        setCurrentUser(data.username || username);
+      }
+
+      setSuccessMsg("User created successfully. Redirecting…");
+      window.location.href = "/trader";
+    } catch (err) {
+      console.error("Register error:", err);
+      setErrorMsg("Network error while creating user.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const isLogin = activeTab === "login";
 
   return (
-    <div style={{ maxWidth: "420px", margin: "4rem auto", fontFamily: "Arial" }}>
-      <h1 style={{ textAlign: "center" }}>Wealth Ocean – Login</h1>
-      <p style={{ textAlign: "center", color: "#666" }}>
-        Multi-broker, multi-user trading panel
-      </p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full max-w-xl bg-white shadow-md rounded-lg p-8">
+        <h1 className="text-2xl font-semibold text-center mb-2">
+          Wealth Ocean – Login
+        </h1>
+        <p className="text-center text-gray-600 mb-6">
+          Multi-broker, multi-user trading panel
+        </p>
 
-      {message && (
-        <div
-          style={{
-            background: "#fee",
-            padding: "10px",
-            border: "1px solid #faa",
-            marginBottom: "10px"
-          }}
-        >
-          {message}
-        </div>
-      )}
-
-      <div style={{ display: "flex", marginBottom: "20px" }}>
-        <button
-          onClick={() => setTab("login")}
-          style={{
-            flex: 1,
-            padding: 10,
-            background: tab === "login" ? "#000" : "#eee",
-            color: tab === "login" ? "#fff" : "#000",
-            border: "1px solid #333"
-          }}
-        >
-          Login
-        </button>
-
-        <button
-          onClick={() => setTab("create")}
-          style={{
-            flex: 1,
-            padding: 10,
-            background: tab === "create" ? "#000" : "#eee",
-            color: tab === "create" ? "#fff" : "#000",
-            border: "1px solid #333"
-          }}
-        >
-          Create User
-        </button>
-      </div>
-
-      <div>
-        <label>User ID</label>
-        <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          style={{ width: "100%", padding: 8, margin: "5px 0 10px" }}
-        />
-
-        <label>Password</label>
-        <input
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: "100%", padding: 8, margin: "5px 0 15px" }}
-        />
-
-        {tab === "login" ? (
+        {/* Tabs */}
+        <div className="flex border-b mb-6">
           <button
-            onClick={handleLogin}
-            style={{
-              width: "100%",
-              padding: 12,
-              background: "#2563eb",
-              color: "#fff",
-              border: "none"
+            className={`flex-1 py-2 text-center ${
+              isLogin
+                ? "border-b-2 border-blue-600 font-semibold"
+                : "text-gray-500"
+            }`}
+            onClick={() => {
+              setActiveTab("login");
+              resetMessages();
             }}
           >
             Login
           </button>
-        ) : (
           <button
-            onClick={handleCreateUser}
-            style={{
-              width: "100%",
-              padding: 12,
-              background: "#16a34a",
-              color: "#fff",
-              border: "none"
+            className={`flex-1 py-2 text-center ${
+              !isLogin
+                ? "border-b-2 border-blue-600 font-semibold"
+                : "text-gray-500"
+            }`}
+            onClick={() => {
+              setActiveTab("register");
+              resetMessages();
             }}
           >
-            Create User
+            Create New User
           </button>
+        </div>
+
+        {/* Alerts */}
+        {errorMsg && (
+          <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-2 text-red-700 text-sm">
+            {errorMsg}
+          </div>
+        )}
+        {successMsg && (
+          <div className="mb-4 rounded border border-green-300 bg-green-50 px-4 py-2 text-green-700 text-sm">
+            {successMsg}
+          </div>
+        )}
+
+        {/* Forms */}
+        {isLogin ? (
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                User ID / Username
+              </label>
+              <input
+                type="text"
+                className="w-full border rounded px-3 py-2 text-sm"
+                placeholder="Enter your user id"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Password</label>
+              <input
+                type="password"
+                className="w-full border rounded px-3 py-2 text-sm"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-600 text-white font-semibold py-2 rounded hover:bg-blue-700 disabled:opacity-60"
+            >
+              {loading ? "Logging in..." : "Login"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleRegister} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                User ID / Username
+              </label>
+              <input
+                type="text"
+                className="w-full border rounded px-3 py-2 text-sm"
+                placeholder="Choose a user id"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Email (optional)
+              </label>
+              <input
+                type="email"
+                className="w-full border rounded px-3 py-2 text-sm"
+                placeholder="Enter your email (optional)"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Password</label>
+              <input
+                type="password"
+                className="w-full border rounded px-3 py-2 text-sm"
+                placeholder="Choose a password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-green-600 text-white font-semibold py-2 rounded hover:bg-green-700 disabled:opacity-60"
+            >
+              {loading ? "Creating..." : "Create User"}
+            </button>
+          </form>
         )}
       </div>
     </div>
