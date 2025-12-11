@@ -41,121 +41,165 @@ AUTH_BASE = "https://auth.dhan.co/app"
 LOGIN_URL_BASE = "https://partner-login.dhan.co/?consentAppId="
 
 def _save_access_token(client: Dict[str, Any], new_token: str):
-    """
-    Persists updated access_token into the user's JSON file.
-    """
     uid = str(client.get("userid") or client.get("client_id"))
     if not uid:
         return False
 
     path = os.path.join(CLIENTS_DIR, f"{uid}.json")
+
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except:
-        data = client
+        data = client.copy()
 
-    data["apikey"] = new_token
-    data["access_token"] = new_token
+    data["access_token"] = new_token  # Only access_token is updated
 
     try:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-        print(f"[DHAN] Saved new access token for {uid}")
+        print(f"[DHAN] Updated access_token for {uid}")
         return True
     except Exception as e:
-        print(f"[DHAN] Failed saving token for {uid}: {e}")
+        print(f"[DHAN] Failed token save: {e}")
         return False
 
 
-def _generate_consent(client: Dict[str, Any]):
-    client_id = client.get("userid")
-    api_key = client.get("api_key") or client.get("apikey")
+
+def _generate_consent(client: Dict[str, Any]) -> str:
+    client_id  = client.get("userid")
+    api_key    = client.get("apikey")
     api_secret = client.get("api_secret")
 
     if not (client_id and api_key and api_secret):
-        raise Exception("Missing Dhan credentials")
+        raise Exception("Missing Dhan API credentials")
 
     url = f"{AUTH_BASE}/generate-consent?client_id={client_id}"
     headers = {"app_id": api_key, "app_secret": api_secret}
 
     r = requests.post(url, headers=headers, timeout=15)
     if r.status_code != 200:
-        raise Exception(f"Consent generation failed: {r.text}")
+        raise Exception(f"Consent failed: {r.text}")
 
     data = r.json()
     return data.get("consentAppId")
 
 
+
 def _browser_login(client: Dict[str, Any], consent_id: str):
+    """
+    Performs headless login:
+    1. Enter mobile
+    2. Enter OTP (TOTP)
+    3. Enter PIN
+    4. Wait for redirect & extract tokenId
+    """
     login_url = f"{LOGIN_URL_BASE}{consent_id}"
 
-    totp_secret = client.get("totpkey")
     mobile = client.get("mobile")
+    totp_secret = client.get("totpkey")
     pin = client.get("pin")
 
-    if not all([totp_secret, mobile, pin]):
-        raise Exception("Missing TOTP / mobile / pin")
+    if not all([mobile, totp_secret, pin]):
+        raise Exception("Missing mobile/totp/pin for Dhan login")
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"]
+        )
         page = browser.new_page()
         page.goto(login_url, wait_until="domcontentloaded")
 
-        # Enter mobile
-        page.fill("input[type='tel']", mobile)
-        page.click("button:has-text('Proceed')")
+        # -------------------------
+        # STEP 1: MOBILE INPUT
+        # -------------------------
+        page.wait_for_selector("input[type='tel'], input[name='mobile']", timeout=20000)
+        page.fill("input[type='tel'], input[name='mobile']", mobile)
+
+        proceed = page.query_selector("button:has-text('Proceed')")
+        if proceed:
+            proceed.click()
         time.sleep(1)
 
-        # TOTP
-        otp = pyotp.TOTP(totp_secret).now()
-        time.sleep(2)
-        otp_inputs = page.query_selector_all("input")
-        for i, box in enumerate(otp_inputs[:len(otp)]):
-            box.fill(otp[i])
+        # -------------------------
+        # STEP 2: TOTP INPUT
+        # -------------------------
+        totp = pyotp.TOTP(totp_secret).now()
+        otp_fields = page.query_selector_all(
+            "input[aria-label='otp-input'], "
+            "input[autocomplete='one-time-code'], "
+            "input[type='tel'], input.input-box"
+        )
 
-        # Continue from OTP
-        try:
-            page.click("button:has-text('Proceed')")
-        except:
-            pass
+        if len(otp_fields) < 4:
+            otp_fields = page.query_selector_all("input")
 
-        # PIN
-        time.sleep(2)
-        pin_inputs = page.query_selector_all("input[type='password'],input[type='tel']")
-        for i, box in enumerate(pin_inputs[:len(pin)]):
+        for i, f in enumerate(otp_fields[:len(totp)]):
+            f.fill(totp[i])
+            time.sleep(0.15)
+
+        # Click Proceed if still visible
+        otp_proceed = page.query_selector("button:has-text('Proceed'):not([disabled])")
+        if otp_proceed:
+            otp_proceed.click()
+
+        time.sleep(1)
+
+        # -------------------------
+        # STEP 3: PIN INPUT
+        # -------------------------
+        pin_boxes = page.query_selector_all(
+            "input[type='password'], input.input-box, input[type='tel']"
+        )
+
+        if len(pin_boxes) < len(pin):
+            time.sleep(1.5)
+            pin_boxes = page.query_selector_all(
+                "input[type='password'], input.input-box, input[type='tel']"
+            )
+
+        for i, box in enumerate(pin_boxes[:len(pin)]):
             box.fill(pin[i])
             time.sleep(0.2)
 
-        try:
-            page.click("button:has-text('Continue')")
-        except:
-            pass
+        # Continue button
+        cont = page.query_selector("button:has-text('Continue'):not([disabled])")
+        if cont:
+            cont.click()
 
-        # Wait for redirect
+        # -------------------------
+        # STEP 4: Redirect
+        # -------------------------
         page.wait_for_url("**tokenId=**", timeout=20000)
         final_url = page.url
+
+        from urllib.parse import urlparse, parse_qs
         query = parse_qs(urlparse(final_url).query)
         token_id = query.get("tokenId", [""])[0]
+
         browser.close()
 
         if not token_id:
-            raise Exception("Token ID missing")
+            raise Exception("tokenId not found during login")
+
         return token_id
 
 
+
 def _exchange_access_token(client: Dict[str, Any], token_id: str):
-    api_key = client.get("api_key") or client.get("apikey")
+    api_key    = client.get("apikey")
     api_secret = client.get("api_secret")
 
     url = f"{AUTH_BASE}/consumeApp-consent?tokenId={token_id}"
     headers = {"app_id": api_key, "app_secret": api_secret}
 
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, timeout=15)
     if r.status_code != 200:
-        raise Exception("Access token generation failed")
+        raise Exception(f"Token exchange failed: {r.text}")
 
     return r.json().get("accessToken")
+
 
 def _check_token_validity(token: str) -> Dict[str, Any]:
     try:
@@ -176,22 +220,16 @@ def _check_token_validity(token: str) -> Dict[str, Any]:
 
 
 def auto_login(client: Dict[str, Any]):
-    """
-    Main callable used by the router.
-    1) Generate consent
-    2) Headless login
-    3) Generate access token
-    4) Save token into user json
-    """
     try:
-        consent = _generate_consent(client)
-        token_id = _browser_login(client, consent)
-        access_token = _exchange_access_token(client, token_id)
+        consent_id = _generate_consent(client)
+        token_id   = _browser_login(client, consent_id)
+        access     = _exchange_access_token(client, token_id)
 
-        if access_token:
-            _save_access_token(client, access_token)
-            return {"ok": True, "access_token": access_token}
-        return {"ok": False, "message": "Failed to obtain token"}
+        if access:
+            _save_access_token(client, access)
+            return {"ok": True, "access_token": access}
+
+        return {"ok": False, "message": "Access token missing"}
     except Exception as e:
         return {"ok": False, "message": str(e)}
 
@@ -266,16 +304,23 @@ def _parse_token_validity(ts: str):
     return None
 
 def login(client: Dict[str, Any]):
-    token = client.get("apikey") or client.get("access_token")
-    check = {}
+    """
+    Router calls this.
+    1. If stored token valid → return ok
+    2. Else → run auto-login()
+    """
+    token = client.get("access_token") or client.get("apikey")
 
+    # Check validity
     if token:
-        check = _check_token_validity(token)
-        if check.get("ok"):
-            return check  # token valid, no automation needed
+        res = _check_token_validity(token)
+        if res.get("ok"):
+            return {"ok": True, "access_token": token}
 
-    print(f"[DHAN] Token missing or expired → triggering auto-login for {client.get('userid')}")
-    auto = auto_login(client)
+    print(f"[DHAN] Token missing/expired → auto-login for {client.get('userid')}")
+
+    return auto_login(client)
+
 
     if auto.get("ok"):
         # verify new token
@@ -984,6 +1029,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
