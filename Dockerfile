@@ -1,18 +1,17 @@
-# Correct Playwright image (includes Chromium, Firefox, WebKit)
+# Playwright base image with Chromium, Firefox, WebKit
 FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
 
 WORKDIR /app
 
-# Copy requirements
+# Install dependencies
 COPY requirements.txt .
-
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Copy backend source
+# Copy backend code
 COPY . .
 
-# Expose port
 EXPOSE 8080
 
-CMD ["python", "src/MultiBroker_Router.py"]
+# Start FastAPI with uvicorn (fixed port)
+CMD ["uvicorn", "src.MultiBroker_Router:app", "--host", "0.0.0.0", "--port", "8080"]
