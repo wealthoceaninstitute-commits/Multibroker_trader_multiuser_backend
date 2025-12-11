@@ -14,4 +14,4 @@ COPY . .
 EXPOSE 8080
 
 # Start FastAPI with uvicorn (fixed port)
-CMD ["uvicorn", "src.MultiBroker_Router:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "MultiBroker_Router:app", "--host", "0.0.0.0", "--port", "8080"]
