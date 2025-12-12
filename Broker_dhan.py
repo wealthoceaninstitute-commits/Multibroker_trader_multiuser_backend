@@ -266,7 +266,7 @@ def _browser_login(client: Dict[str, Any], consent_id: str):
         # STEP 4: Redirect
         # -------------------------
         dlog("Waiting for redirect with tokenId")
-        page.wait_for_url("**tokenId=**", timeout=20000)
+        page.wait_for_url("**/dhan/callback?tokenId=**", wait_until="domcontentloaded", timeout=30000)
 
         final_url = page.url
         dlog(f"Redirect URL: {final_url}")
@@ -1222,6 +1222,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
