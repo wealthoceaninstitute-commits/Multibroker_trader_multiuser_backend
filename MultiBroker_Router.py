@@ -537,72 +537,66 @@ def _dispatch_login(broker: str, path: str):
     try:
         client = _load(path)
 
-        # 🔥 DEBUG PRINT — SHOW EXACT CLIENT LOADED FROM GITHUB/DISK
-        try:
-            print("\n================= CLIENT DEBUG =================")
-            print(f"[debug] broker      = {broker}")
-            print(f"[debug] file path   = {path}")
-            print(f"[debug] client_json =\n{json.dumps(client, indent=2)}")
-            print("===============================================\n")
-        except Exception as e:
-            print(f"[debug] unable to print client JSON: {e}")
+        # 🔥 DEBUG PRINT — SHOW EXACT CLIENT LOADED
+        print("\n================= CLIENT DEBUG =================")
+        print(f"[debug] broker      = {broker}")
+        print(f"[debug] file path   = {path}")
+        print(f"[debug] client_json =\n{json.dumps(client, indent=2)}")
+        print("===============================================\n")
 
         # Validate minimum fields
         if not _has_required_for_login(broker, client):
             print(f"[router] skip login ({broker}/{client.get('userid')}): missing required fields")
             return
 
-        # Module selection
+        # Load broker module
         mod_name = "Broker_dhan" if broker == "dhan" else "Broker_motilal"
         mod = importlib.import_module(mod_name)
         login_fn = getattr(mod, "login", None)
+
         if not callable(login_fn):
             print(f"[router] {mod_name}.login() not found")
             return
 
-        # Perform login
+        # -------------------------
+        # 🚀 PERFORM LOGIN
+        # -------------------------
         result = login_fn(client)
-
-        # Determine login status
-        ok = bool(result if not isinstance(result, dict) else result.get("ok", True))
-
-        # Store token metadata for Dhan login dict
-       # -------------------------------
-       # ✅ HANDLE LOGIN RESULT (ROUTER)
-       # -------------------------------
         ok = False
-        
+
         if isinstance(result, dict):
             ok = bool(result.get("ok", True))
-        
-            # ✅ SAVE ACCESS TOKEN (CRITICAL)
+
+            # ✅ ACCESS TOKEN BELONGS TO ROUTER
             if result.get("access_token"):
                 client["access_token"] = result["access_token"]
                 print(f"[router] access_token saved for {broker}/{client.get('userid')}")
-        
+
             # Optional metadata
             if result.get("expiryTime"):
                 client["token_expiry"] = result["expiryTime"]
-        
+
             if result.get("token_validity_iso"):
                 client["token_validity_iso"] = result["token_validity_iso"]
-        
+
             from datetime import datetime
             client["last_token_check"] = datetime.utcnow().isoformat() + "Z"
-        
+
             if result.get("message"):
                 print(f"[router] login message: {result['message']}")
-        
+
         else:
             ok = bool(result)
-        
+
         client["session_active"] = ok
-        
+
         # 🔒 SINGLE SOURCE OF TRUTH SAVE
         _save(path, client)
-        
+
         print(f"[router] login completed broker={broker} userid={client.get('userid')} ok={ok}")
 
+    except Exception as e:
+        print(f"[router] ❌ login failed for {broker}/{path}: {e}")
 
 
 
@@ -2076,6 +2070,7 @@ def route_modify_order(payload: Dict[str, Any] = Body(...)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("MultiBroker_Router:app", host="127.0.0.1", port=5001, reload=False)
+
 
 
 
