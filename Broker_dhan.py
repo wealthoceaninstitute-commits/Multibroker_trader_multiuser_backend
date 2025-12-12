@@ -286,68 +286,73 @@ def _browser_login(client: Dict[str, Any], consent_id: str):
 
 
 
-def _exchange_access_token(client: Dict[str, Any], token_id: str):
+def _exchange_access_token(client: dict, token_id: str) -> dict:
     """
-    Exchanges tokenId for accessToken from Dhan.
-    Logic unchanged – only debug logs added.
+    Exchange tokenId for Dhan accessToken.
+    This is STEP-3 after browser login.
     """
-    def dlog(msg):
-        print(f"[DHAN][EXCHANGE] {msg}", flush=True)
 
-    api_key    = client.get("apikey")
+    print(f"[DHAN][EXCHANGE] Starting token exchange for userid={client.get('userid')}", flush=True)
+    print(f"[DHAN][EXCHANGE] Using tokenId={token_id}", flush=True)
+
+    api_key = client.get("apikey")
     api_secret = client.get("api_secret")
 
     if not api_key or not api_secret:
-        dlog("❌ Missing api_key / api_secret")
-        raise Exception("Missing API credentials for token exchange")
+        raise Exception("Missing api_key or api_secret for token exchange")
 
-    if not token_id:
-        dlog("❌ tokenId is empty")
-        raise Exception("Empty tokenId received")
+    url = f"https://auth.dhan.co/app/consumeApp-consent?tokenId={token_id}"
 
-    dlog(f"Starting token exchange for userid={client.get('userid')}")
-    dlog(f"Using tokenId={token_id}")
-
-    url = f"{AUTH_BASE}/consumeApp-consent?tokenId={token_id}"
     headers = {
-        "app_id": api_key,
-        "app_secret": api_secret
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+
+        # 🔑 THESE TWO HEADERS ARE MANDATORY
+        "client-id": api_key,
+        "access-token": api_secret,
     }
 
-    dlog(f"Calling exchange endpoint: {url}")
+    print(f"[DHAN][EXCHANGE] POST {url}", flush=True)
+    print(f"[DHAN][EXCHANGE] Headers client-id={api_key[:4]}****", flush=True)
 
     try:
-        r = requests.get(url, headers=headers, timeout=15)
+        resp = requests.post(url, headers=headers, timeout=15)
     except Exception as e:
-        dlog(f"❌ HTTP request failed: {e}")
-        raise
+        print(f"[DHAN][EXCHANGE] ❌ HTTP request failed: {e}", flush=True)
+        raise Exception("Token exchange HTTP error")
 
-    dlog(f"HTTP status={r.status_code}")
-
-    if r.status_code != 200:
-        try:
-            body = r.text
-        except Exception:
-            body = "<no body>"
-        dlog(f"❌ Exchange failed response: {body}")
-        raise Exception("Token exchange failed")
+    print(f"[DHAN][EXCHANGE] HTTP status={resp.status_code}", flush=True)
 
     try:
-        data = r.json()
+        data = resp.json()
     except Exception:
-        dlog("❌ Failed to parse JSON response")
-        raise Exception("Invalid JSON in token exchange response")
+        print(f"[DHAN][EXCHANGE] ❌ Non-JSON response: {resp.text}", flush=True)
+        raise Exception("Invalid exchange response")
 
-    access_token = data.get("accessToken")
+    print(f"[DHAN][EXCHANGE] Response JSON:\n{json.dumps(data, indent=2)}", flush=True)
+
+    if resp.status_code != 200:
+        raise Exception(data.get("message") or "Token exchange failed")
+
+    access_token = data.get("accessToken") or data.get("access_token")
+    expiry = data.get("validity") or data.get("expiry")
 
     if not access_token:
-        dlog(f"❌ accessToken missing in response: {data}")
-        raise Exception("accessToken not found in exchange response")
+        raise Exception("accessToken missing in exchange response")
 
-    safe_tok = f"{access_token[:6]}...{access_token[-4:]}"
-    dlog(f"✅ accessToken received: {safe_tok}")
+    # ✅ SAVE INTO CLIENT JSON
+    client["access_token"] = access_token
+    client["token_validity_raw"] = expiry
+    client["session_active"] = True
 
-    return access_token
+    print("[DHAN][EXCHANGE] ✅ Access token obtained successfully", flush=True)
+
+    return {
+        "ok": True,
+        "access_token": access_token,
+        "token_validity_raw": expiry,
+        "message": "Dhan login successful",
+    }
 
 
 
@@ -1222,6 +1227,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
