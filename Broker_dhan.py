@@ -298,36 +298,38 @@ def _exchange_access_token(client: dict, token_id: str) -> dict:
     url = f"https://auth.dhan.co/app/consumeApp-consent?tokenId={token_id}"
 
     headers = {
-        "app_id": api_key,
-        "app_secret": api_secret,
         "Accept": "application/json",
         "Content-Type": "application/json",
+        "client-id": api_key,
+        "access-token": api_secret,
     }
 
     print(f"[DHAN][EXCHANGE] POST {url}", flush=True)
 
-    resp = requests.post(
-        url,
-        headers=headers,
-        json={},          # 🔥 REQUIRED
-        timeout=15
-    )
+    r = requests.post(url, headers=headers, timeout=15)
 
-    print(f"[DHAN][EXCHANGE] HTTP status={resp.status_code}", flush=True)
-    data = resp.json()
+    print(f"[DHAN][EXCHANGE] HTTP status={r.status_code}", flush=True)
+
+    try:
+        data = r.json()
+    except Exception:
+        raise Exception(f"Invalid JSON exchange response: {r.text}")
+
     print(f"[DHAN][EXCHANGE] Response JSON:\n{json.dumps(data, indent=2)}", flush=True)
 
-    if resp.status_code != 200:
+    if r.status_code != 200:
         raise Exception("Token exchange failed")
 
     access_token = data.get("accessToken")
+    expiry = data.get("expiryTime")
+
     if not access_token:
         raise Exception("accessToken missing in exchange response")
 
     return {
         "ok": True,
         "access_token": access_token,
-        "token_validity_raw": data.get("validity"),
+        "expiry": expiry,
     }
 
 
@@ -351,42 +353,24 @@ def _check_token_validity(token: str) -> Dict[str, Any]:
 
 
 def auto_login(client: Dict[str, Any]):
-    """
-    Orchestrates full Dhan auto-login.
-    Logic unchanged – only debug logs added.
-    """
     def dlog(msg):
         print(f"[DHAN][AUTO] {msg}", flush=True)
 
-    uid = client.get("userid") or client.get("client_id")
+    uid = client.get("userid")
     dlog(f"Starting auto-login for userid={uid}")
 
     try:
-        # 1) Generate consent
         dlog("STEP 1: generate consent")
         consent_id = _generate_consent(client)
-        dlog(f"Consent generated: {consent_id}")
 
-        # 2) Browser login (mobile → TOTP → PIN → redirect)
         dlog("STEP 2: browser login")
         token_id = _browser_login(client, consent_id)
-        dlog(f"Browser login complete, tokenId={token_id}")
 
-        # 3) Exchange tokenId → accessToken
-        dlog("STEP 3: exchange tokenId for accessToken")
-        access = _exchange_access_token(client, token_id)
+        dlog("STEP 3: exchange tokenId")
+        exchange = _exchange_access_token(client, token_id)
 
-        if not access:
-            dlog("❌ Access token missing after exchange")
-            return {"ok": False, "message": "Access token missing"}
-
-        # 4) Save token
-        dlog("STEP 4: saving access token")
-        saved = _save_access_token(client, access)
-        dlog(f"Token save result={saved}")
-
-        dlog("✅ Auto-login SUCCESS")
-        return {"ok": True, "access_token": access}
+        dlog("✅ Auto-login SUCCESS (token returned)")
+        return exchange   # 🔥 RETURN ONLY
 
     except Exception as e:
         dlog(f"❌ Auto-login FAILED: {e}")
@@ -464,43 +448,23 @@ def _parse_token_validity(ts: str):
     return None
 
 def login(client: Dict[str, Any]):
-    """
-    Router entry-point for DHAN login.
-    Logic unchanged – only debug logs added.
-    """
     def dlog(msg):
         print(f"[DHAN][LOGIN] {msg}", flush=True)
 
-    uid = client.get("userid") or client.get("client_id")
+    uid = client.get("userid")
     dlog(f"Login called for userid={uid}")
 
-    # Existing token (may be access_token or apikey fallback)
-    token = client.get("access_token") or client.get("apikey")
+    token = client.get("access_token")
 
     if token:
-        safe_tok = f"{token[:6]}...{token[-4:]}"
-        dlog(f"Found existing token={safe_tok}")
-        dlog("Checking token validity via /profile")
-
         res = _check_token_validity(token)
-        dlog(f"Token valid={res.get('ok')}")
-
         if res.get("ok"):
-            dlog("✅ Existing token is valid → login success")
+            dlog("Existing token valid")
             return {"ok": True, "access_token": token}
 
-        dlog("Existing token invalid/expired")
+    dlog("Triggering auto-login")
+    return auto_login(client)
 
-    else:
-        dlog("No existing token found")
-
-    # Fall back to auto-login
-    dlog("Triggering auto-login flow")
-    result = auto_login(client)
-
-    dlog(f"Auto-login result ok={result.get('ok')}")
-
-    return result
 
 
 
@@ -1203,6 +1167,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
