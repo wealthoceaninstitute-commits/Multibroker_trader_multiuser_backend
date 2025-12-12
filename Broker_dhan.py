@@ -287,38 +287,47 @@ def _browser_login(client: Dict[str, Any], consent_id: str):
 
 
 def _exchange_access_token(client: dict, token_id: str) -> dict:
+    """
+    Exchange tokenId for Dhan accessToken.
+    STEP-3 after browser login.
+    """
+
     print(f"[DHAN][EXCHANGE] Starting token exchange for userid={client.get('userid')}", flush=True)
+    print(f"[DHAN][EXCHANGE] Using tokenId={token_id}", flush=True)
 
     api_key = client.get("apikey")
-    api_secret = client.get("api_secret")
+    api_secret = client.get("api_secret")  # kept for records only
 
-    if not api_key or not api_secret:
-        raise Exception("Missing api_key or api_secret for token exchange")
+    if not api_key:
+        raise Exception("Missing api_key for token exchange")
 
     url = f"https://auth.dhan.co/app/consumeApp-consent?tokenId={token_id}"
 
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
+
+        # ✅ CRITICAL FIX
         "client-id": api_key,
-        "access-token": api_secret,
+        "access-token": api_key,
     }
 
     print(f"[DHAN][EXCHANGE] POST {url}", flush=True)
+    print(f"[DHAN][EXCHANGE] Headers client-id={api_key[:4]}****", flush=True)
 
-    r = requests.post(url, headers=headers, timeout=15)
+    resp = requests.post(url, headers=headers, timeout=15)
 
-    print(f"[DHAN][EXCHANGE] HTTP status={r.status_code}", flush=True)
+    print(f"[DHAN][EXCHANGE] HTTP status={resp.status_code}", flush=True)
 
     try:
-        data = r.json()
+        data = resp.json()
     except Exception:
-        raise Exception(f"Invalid JSON exchange response: {r.text}")
+        raise Exception(f"Non-JSON exchange response: {resp.text}")
 
     print(f"[DHAN][EXCHANGE] Response JSON:\n{json.dumps(data, indent=2)}", flush=True)
 
-    if r.status_code != 200:
-        raise Exception("Token exchange failed")
+    if resp.status_code != 200:
+        raise Exception(data.get("message") or "Token exchange failed")
 
     access_token = data.get("accessToken")
     expiry = data.get("expiryTime")
@@ -329,7 +338,8 @@ def _exchange_access_token(client: dict, token_id: str) -> dict:
     return {
         "ok": True,
         "access_token": access_token,
-        "expiry": expiry,
+        "expiryTime": expiry,
+        "message": "Dhan login successful",
     }
 
 
@@ -1167,6 +1177,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
