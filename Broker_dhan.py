@@ -896,7 +896,7 @@ def place_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
                 responses[key] = {"status": "ERROR", "message": "Client JSON not found"}
             return
 
-        token = (cj.get("apikey") or cj.get("access_token") or "").strip()
+        token = (cj.get("access_token") or "").strip()
         if not token:
             with lock:
                 responses[key] = {"status": "ERROR", "message": "Missing access token"}
@@ -1179,6 +1179,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
