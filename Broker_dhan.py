@@ -485,7 +485,6 @@ def get_orders() -> Dict[str, List[Dict[str, Any]]]:
     buckets: Dict[str, List[Dict[str, Any]]] = {k: [] for k in STAT_KEYS}
 
     for c in _read_clients():
-        # ✅ FIX: use `c`, not `cj`
         token = (c.get("access_token") or "").strip()
         if not token:
             continue
@@ -503,7 +502,7 @@ def get_orders() -> Dict[str, List[Dict[str, Any]]]:
                 "https://api.dhan.co/v2/orders",
                 headers={
                     "Content-Type": "application/json",
-                    "access-token": token
+                    "access-token": token,
                 },
                 timeout=10,
             )
@@ -540,6 +539,7 @@ def get_orders() -> Dict[str, List[Dict[str, Any]]]:
                 buckets["others"].append(row)
 
     return buckets
+
 
 
 
@@ -1192,6 +1192,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
