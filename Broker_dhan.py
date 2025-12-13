@@ -765,19 +765,18 @@ def get_holdings() -> Dict[str, Any]:
     summaries: List[Dict[str, Any]] = []
 
     for c in _read_clients():
-        name       = c.get("name") or c.get("display_name") or c.get("userid") or c.get("client_id") or ""
-        token = (cj.get("access_token") or "").strip()
+        name = c.get("name") or c.get("display_name") or c.get("userid") or c.get("client_id") or ""
+        access_tok = (c.get("access_token") or "").strip()
 
+        if not access_tok:
+            continue
 
         try:
             capital = float(c.get("capital", 0) or c.get("base_amount", 0) or 0.0)
         except Exception:
             capital = 0.0
 
-        if not access_tok:
-            continue
-
-        # 1) holdings
+        # ---------------- holdings ----------------
         try:
             resp = requests.get(
                 "https://api.dhan.co/v2/holdings",
@@ -788,40 +787,39 @@ def get_holdings() -> Dict[str, Any]:
             if not isinstance(rows, list):
                 rows = []
         except Exception as e:
-            print(f"[DHAN] get_holdings error for {name}: {e}")
+            print(f"[DHAN] get_holdings error for {name}: {e}", flush=True)
             rows = []
 
         invested = 0.0
         total_pnl = 0.0
 
         for h in rows:
-            symbol = (h.get("tradingSymbol") or "").strip()
             try:
-                qty    = float(h.get("availableQty", h.get("totalQty", 0)) or 0)
+                qty = float(h.get("availableQty", h.get("totalQty", 0)) or 0)
                 buyavg = float(h.get("avgCostPrice", 0) or 0)
-                ltp    = float(h.get("lastTradedPrice", h.get("LTP", h.get("ltp", h.get("lastprice", 0)))) or 0)
+                ltp = float(h.get("lastTradedPrice", h.get("ltp", 0)) or 0)
             except Exception:
-                qty, buyavg, ltp = 0.0, 0.0, 0.0
+                continue
 
             if qty <= 0:
                 continue
 
             pnl = round((ltp - buyavg) * qty, 2)
-            invested  += qty * buyavg
+            invested += qty * buyavg
             total_pnl += pnl
 
             holdings_rows.append({
                 "name": name,
-                "symbol": symbol,
+                "symbol": h.get("tradingSymbol", ""),
                 "quantity": qty,
                 "buy_avg": round(buyavg, 2),
                 "ltp": round(ltp, 2),
-                "pnl": pnl
+                "pnl": pnl,
             })
 
         current_value = invested + total_pnl
 
-        # 2) funds
+        # ---------------- funds ----------------
         funds = {}
         try:
             f = requests.get(
@@ -832,18 +830,10 @@ def get_holdings() -> Dict[str, Any]:
             if f.status_code == 200 and f.content:
                 funds = f.json() or {}
         except Exception as e:
-            print(f"[DHAN] fundlimit error for {name}: {e}")
+            print(f"[DHAN] fundlimit error for {name}: {e}", flush=True)
 
-        available_balance     = float(funds.get("availabelBalance", funds.get("availableBalance", 0)) or 0)
-        withdrawable_balance  = float(funds.get("withdrawableBalance", 0) or 0)
-        utilized_amount       = float(funds.get("utilizedAmount", 0) or 0)
-        sod_limit             = float(funds.get("sodLimit", 0) or 0)
-        collateral_amount     = float(funds.get("collateralAmount", 0) or 0)
-        receivable_amount     = float(funds.get("receivableAmount", funds.get("receiveableAmount", 0)) or 0)
-        blocked_payout_amount = float(funds.get("blockedPayoutAmount", 0) or 0)
-
-        available_margin = available_balance
-        net_gain = round((current_value + available_margin) - capital, 2)
+        available_balance = float(funds.get("availableBalance", funds.get("availabelBalance", 0)) or 0)
+        net_gain = round((current_value + available_balance) - capital, 2)
 
         summaries.append({
             "name": name,
@@ -851,20 +841,12 @@ def get_holdings() -> Dict[str, Any]:
             "invested": round(invested, 2),
             "pnl": round(total_pnl, 2),
             "current_value": round(current_value, 2),
-            "available_margin": round(available_margin, 2),
-
-            "available_balance": round(available_balance, 2),
-            "withdrawable_balance": round(withdrawable_balance, 2),
-            "utilized_amount": round(utilized_amount, 2),
-            "sod_limit": round(sod_limit, 2),
-            "collateral_amount": round(collateral_amount, 2),
-            "receivable_amount": round(receivable_amount, 2),
-            "blocked_payout_amount": round(blocked_payout_amount, 2),
-
-            "net_gain": net_gain
+            "available_margin": round(available_balance, 2),
+            "net_gain": net_gain,
         })
 
     return {"holdings": holdings_rows, "summary": summaries}
+
 
 
 # ---------------------------
@@ -1192,6 +1174,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
