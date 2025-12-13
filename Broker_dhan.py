@@ -484,7 +484,7 @@ def login(client: Dict[str, Any]):
 def get_orders() -> Dict[str, List[Dict[str, Any]]]:
     buckets: Dict[str, List[Dict[str, Any]]] = {k: [] for k in STAT_KEYS}
     for c in _read_clients():
-        token = (c.get("apikey") or c.get("access_token") or "").strip()
+        token = (cj.get("access_token") or "").strip()
         if not token:
             continue
         name = c.get("name") or c.get("display_name") or c.get("userid") or c.get("client_id") or ""
@@ -526,7 +526,7 @@ def get_orders() -> Dict[str, List[Dict[str, Any]]]:
 # cancel single order (used by router fallback)
 # ---------------------------
 def cancel_order_dhan(client_json: Dict[str, Any], order_id: str) -> Dict[str, Any]:
-    token = (client_json.get("apikey") or client_json.get("access_token") or "").strip()
+    token = (cj.get("access_token") or "").strip()
     if not token:
         return {"status": "error", "message": "Missing access token", "raw": {}}
 
@@ -577,7 +577,7 @@ def get_positions() -> Dict[str, List[Dict[str, Any]]]:
     positions_data: Dict[str, List[Dict[str, Any]]] = {"open": [], "closed": []}
 
     for c in _read_clients():
-        token = (c.get("apikey") or c.get("access_token") or "").strip()
+        token = (cj.get("access_token") or "").strip()
         if not token:
             continue
         name = c.get("name") or c.get("display_name") or c.get("userid") or c.get("client_id") or ""
@@ -735,7 +735,7 @@ def get_holdings() -> Dict[str, Any]:
 
     for c in _read_clients():
         name       = c.get("name") or c.get("display_name") or c.get("userid") or c.get("client_id") or ""
-        access_tok = (c.get("apikey") or c.get("access_token") or "").strip()
+        token = (cj.get("access_token") or "").strip()
 
         try:
             capital = float(c.get("capital", 0) or c.get("base_amount", 0) or 0.0)
@@ -1160,6 +1160,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
