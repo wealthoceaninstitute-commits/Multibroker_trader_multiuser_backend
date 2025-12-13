@@ -483,21 +483,39 @@ def login(client: Dict[str, Any]):
 
 def get_orders() -> Dict[str, List[Dict[str, Any]]]:
     buckets: Dict[str, List[Dict[str, Any]]] = {k: [] for k in STAT_KEYS}
+
     for c in _read_clients():
-        token = (cj.get("access_token") or "").strip()
+        # ✅ FIX: use `c`, not `cj`
+        token = (c.get("access_token") or "").strip()
         if not token:
             continue
-        name = c.get("name") or c.get("display_name") or c.get("userid") or c.get("client_id") or ""
+
+        name = (
+            c.get("name")
+            or c.get("display_name")
+            or c.get("userid")
+            or c.get("client_id")
+            or ""
+        )
+
         try:
-            resp = requests.get("https://api.dhan.co/v2/orders",
-                                headers={"Content-Type": "application/json", "access-token": token},
-                                timeout=10)
+            resp = requests.get(
+                "https://api.dhan.co/v2/orders",
+                headers={
+                    "Content-Type": "application/json",
+                    "access-token": token
+                },
+                timeout=10,
+            )
+
             orders = resp.json() if resp.status_code == 200 else []
             if not isinstance(orders, list):
                 orders = []
+
         except Exception as e:
-            print(f"[DHAN] get_orders error for {name}: {e}")
+            print(f"[DHAN] get_orders error for {name}: {e}", flush=True)
             orders = []
+
         for o in orders:
             row = {
                 "name": name,
@@ -508,6 +526,7 @@ def get_orders() -> Dict[str, List[Dict[str, Any]]]:
                 "status": o.get("orderStatus", ""),
                 "order_id": o.get("orderId", ""),
             }
+
             s = str(row["status"]).lower()
             if "pend" in s:
                 buckets["pending"].append(row)
@@ -519,31 +538,42 @@ def get_orders() -> Dict[str, List[Dict[str, Any]]]:
                 buckets["cancelled"].append(row)
             else:
                 buckets["others"].append(row)
+
     return buckets
+
 
 
 # ---------------------------
 # cancel single order (used by router fallback)
 # ---------------------------
 def cancel_order_dhan(client_json: Dict[str, Any], order_id: str) -> Dict[str, Any]:
-    token = (cj.get("access_token") or "").strip()
+    # ✅ FIX: use client_json, not cj
+    token = (client_json.get("access_token") or "").strip()
     if not token:
         return {"status": "error", "message": "Missing access token", "raw": {}}
 
     try:
         r = requests.delete(
             f"https://api.dhan.co/v2/orders/{order_id}",
-            headers={"Content-Type": "application/json", "access-token": token},
+            headers={
+                "Content-Type": "application/json",
+                "access-token": token
+            },
             timeout=15,
         )
+
         try:
             body = r.json() if r.content else {}
         except Exception:
             body = {}
 
         status_l     = str(body.get("status") or "").strip().lower()
-        order_status = str(body.get("orderStatus") or body.get("order_status") or "").strip().upper()
-        msg_l        = str(body.get("message") or body.get("errorMessage") or "").strip().lower()
+        order_status = str(
+            body.get("orderStatus") or body.get("order_status") or ""
+        ).strip().upper()
+        msg_l        = str(
+            body.get("message") or body.get("errorMessage") or ""
+        ).strip().lower()
 
         ok = (
             status_l == "success"
@@ -570,6 +600,7 @@ def cancel_order_dhan(client_json: Dict[str, Any], order_id: str) -> Dict[str, A
         return {"status": "error", "message": str(e), "raw": {}}
 
 
+
 # ---------------------------
 # positions / square-off
 # ---------------------------
@@ -577,7 +608,7 @@ def get_positions() -> Dict[str, List[Dict[str, Any]]]:
     positions_data: Dict[str, List[Dict[str, Any]]] = {"open": [], "closed": []}
 
     for c in _read_clients():
-        token = (cj.get("access_token") or "").strip()
+         token = (c.get("access_token") or "").strip()
         if not token:
             continue
         name = c.get("name") or c.get("display_name") or c.get("userid") or c.get("client_id") or ""
@@ -636,7 +667,7 @@ def close_positions(positions: List[Dict[str, Any]]) -> List[str]:
             messages.append(f"❌ Client not found for: {name}")
             continue
 
-        token  = (cj.get("apikey") or cj.get("access_token") or "").strip()
+        token = (cj.get("access_token") or "").strip()
         client = (cj.get("userid") or cj.get("client_id") or "").strip()
         if not token or not client:
             messages.append(f"❌ Missing token/client for: {name}")
@@ -736,6 +767,7 @@ def get_holdings() -> Dict[str, Any]:
     for c in _read_clients():
         name       = c.get("name") or c.get("display_name") or c.get("userid") or c.get("client_id") or ""
         token = (cj.get("access_token") or "").strip()
+
 
         try:
             capital = float(c.get("capital", 0) or c.get("base_amount", 0) or 0.0)
@@ -1160,6 +1192,7 @@ def modify_orders(orders: List[Dict[str, Any]]) -> Dict[str, Any]:
             messages.append(f"❌ {row.get('name','<unknown>')} ({row.get('order_id','?')}): {e}")
 
     return {"message": messages}
+
 
 
 
