@@ -243,6 +243,20 @@ def _github_file_delete(rel_path: str) -> None:
     except Exception:
         pass
 
+from datetime import datetime, timezone
+
+def _is_token_expired(client: dict) -> bool:
+    expiry = client.get("token_expiry") or client.get("expiryTime")
+    if not expiry:
+        return True
+
+    try:
+        exp = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+        return exp <= datetime.now(timezone.utc)
+    except Exception:
+        return True
+
+
 
 def refresh_symbol_db_from_github() -> str:
     """
@@ -2070,6 +2084,7 @@ def route_modify_order(payload: Dict[str, Any] = Body(...)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("MultiBroker_Router:app", host="127.0.0.1", port=5001, reload=False)
+
 
 
 
