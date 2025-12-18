@@ -54,7 +54,8 @@ app.add_middleware(
         "https://multibrokertrader-production.up.railway.app",
         "https://multibroker-trader.onrender.com",
         "https://multibrokertrader-production-b4e2.up.railway.app",
-        "https://multibrokertradermultiuser-production-f735.up.railway.app"
+        "https://multibrokertradermultiuser-production-f735.up.railway.app",
+        https://multi-user-bay.vercel.app/
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -2084,6 +2085,7 @@ def route_modify_order(payload: Dict[str, Any] = Body(...)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("MultiBroker_Router:app", host="127.0.0.1", port=5001, reload=False)
+
 
 
 
